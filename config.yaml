@@ -1,0 +1,41 @@
+# config.yaml - PJ-AGENT-2 Configuration (选择性长期记忆 Agent)
+
+llm:
+  api_key_env: "DEEPSEEK_API_KEY"
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+  temperature_agent: 0.7
+  temperature_triple_extraction: 0.3         # 三元组抽取用低温度保证一致性
+  temperature_judge: 0.0
+  max_tokens: 1024
+  max_tokens_triple_extraction: 512
+  max_retries: 5
+  retry_backoff_seconds: 4.0
+
+memory:
+  short_term_window_size: 6                 # N=6, 覆盖50-75%测试轮次
+  long_term_capacity: 150                   # 三元组存储上限
+  embedding_model: "shibing624/text2vec-base-chinese-sentence"
+  embedding_dim: 768
+  top_k_retrieval: 5                        # 每次检索返回 top-5 三元组
+  dedup_semantic_threshold: 0.90            # 语义去重余弦相似度阈值
+  retrieval_auto_trigger_interval: 5        # 兜底检索：每5轮自动触发一次
+  importance_scale: [1, 2, 3, 4, 5]        # LLM 重要性打分范围
+
+# 规则层过滤配置
+rule_filter:
+  min_input_length: 5                       # 长度过滤：<5 中文字符跳过
+  info_density_min_entities: 1              # 信息密度：至少含1个命名实体
+
+evaluation:
+  consistency:
+    rubrics: [1, 2, 3, 4, 5]
+    judge_temperature: 0.0
+  forgetting:
+    delta_bins: [[5, 10], [11, 15], [16, 100]]
+
+paths:
+  test_file: "data/conversation_tests.jsonl"
+  log_dir: "data/agent_logs"
+  memory_store_dir: "memory_store"
+  results_dir: "results"
