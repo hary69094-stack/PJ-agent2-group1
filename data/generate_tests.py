@@ -1,15 +1,15 @@
 """Generate 38 multi-turn conversation test cases for PJ-AGENT-2.
 
-四类分层（ADR 0008）：
-  类别1: 事实分散记忆 (12组)  — 事实分散在多轮不同话题中
+四类分层（ADR 0008）:
+  类别1: 事实分散记忆 (12组) — 事实分散在多轮不同话题中
   类别2: 渐进更新/覆盖记忆 (10组) — 同一信息多次修正
-  类别3: 跨话题干扰记忆 (8组)  — 话题切换后跳回
+  类别3: 跨话题干扰记忆 (8组) — 话题切换后跳回
   类别4: 负面样本/不需要记忆 (8组含额外组) — 寒暄/临时闲聊
 
 每组对话的最后一轮包含 checklist:
   {"fact": "描述", "acceptable": ["可接受答案1", "答案2", ...]}
 
-输出: data/conversation_tests.jsonl
+关键改进: 检核轮改为逐条提问，每条只问一个事实，不列举不暴露。
 """
 
 import json
@@ -21,18 +21,7 @@ OUTPUT = os.path.join(os.path.dirname(__file__), "conversation_tests.jsonl")
 test_cases = []
 
 
-# ── 工具函数 ──────────────────────────────────────────────────────────
-
 def make_turn(turn_num, user_msg, facts_introduced=None, checklist=None):
-    """构造一轮对话。
-
-    Args:
-        turn_num: 轮次编号
-        user_msg: 用户消息
-        facts_introduced: 本轮引入的可记忆事实（用于日志/分析）
-        checklist: 检核清单 [{"fact": str, "acceptable": [str, ...]}, ...]
-                   仅在最后一轮（检测轮）设置
-    """
     t = {
         "turn": turn_num,
         "user": user_msg,
@@ -47,11 +36,10 @@ def make_turn(turn_num, user_msg, facts_introduced=None, checklist=None):
 # 类别1: 事实分散记忆 (12组)
 # ======================================================================
 
-# conf_001 — 基本身份分散
 test_cases.append({
     "test_id": "conv_001",
     "title": "基本身份信息分散",
-    "description": "用户在对话中分散提及姓名、年龄、职业、家乡，末尾集中检核",
+    "description": "用户在对话中分散提及姓名、年龄、职业、家乡，末尾逐条检核",
     "category": "fact_scatter",
     "difficulty": "easy",
     "total_turns": 9,
@@ -68,7 +56,7 @@ test_cases.append({
         make_turn(7, "对了，我老家是四川成都的，不是杭州本地人。",
                   ["家乡: 成都"]),
         make_turn(8, "成都和杭州的生活节奏差别还挺大的。", []),
-        make_turn(9, "我想确认一下，你能告诉我你记得的关于我的信息吗？我叫什么、多大、在哪工作、做什么、老家哪的？",
+        make_turn(9, "我之前告诉过你我叫什么名字？我今年多大了？我在哪个城市工作？我的职业是什么？我老家是哪的？",
                   [],
                   [{"fact": "姓名: 张明", "acceptable": ["张明"]},
                    {"fact": "年龄: 25", "acceptable": ["25", "二十五"]},
@@ -78,7 +66,6 @@ test_cases.append({
     ],
 })
 
-# conv_002 — 偏好分散
 test_cases.append({
     "test_id": "conv_002",
     "title": "饮食与生活习惯偏好",
@@ -101,7 +88,7 @@ test_cases.append({
         make_turn(8, "我也比较喜欢游泳，但最近泳池都关门了。",
                   ["爱好: 游泳"]),
         make_turn(9, "有没有其他不伤膝盖的有氧运动推荐？", []),
-        make_turn(10, "帮我总结一下：我的减肥目标、饮食禁忌、作息时间和运动习惯？",
+        make_turn(10, "我之前跟你说过我在减肥对吧？还有我对什么过敏？我一般几点睡觉？我每周跑步几次？我还喜欢什么运动？",
                   [],
                   [{"fact": "目标: 减肥", "acceptable": ["减肥"]},
                    {"fact": "过敏: 花生", "acceptable": ["花生过敏", "花生"]},
@@ -110,7 +97,6 @@ test_cases.append({
     ],
 })
 
-# conv_003 — 教育与职业路径分散
 test_cases.append({
     "test_id": "conv_003",
     "title": "教育与职业路径",
@@ -134,7 +120,7 @@ test_cases.append({
         make_turn(8, "新加坡国立计算机硕士需要什么申请条件？", []),
         make_turn(9, "学费大概多少？性价比高吗？", []),
         make_turn(10, "如果要留学的话我需要提前多久准备？", []),
-        make_turn(11, "回顾一下我的教育和工作经历：本科学校、专业、毕业年份、第一份工作和现在的工作？",
+        make_turn(11, "我之前说过我是哪个学校毕业的？什么专业？哪年毕业的？第一份工作在哪家公司？现在跳槽到了哪家公司？",
                   [],
                   [{"fact": "学校: 复旦大学", "acceptable": ["复旦大学", "复旦"]},
                    {"fact": "专业: 计算机", "acceptable": ["计算机"]},
@@ -144,7 +130,6 @@ test_cases.append({
     ],
 })
 
-# conv_004 — 家庭成员信息
 test_cases.append({
     "test_id": "conv_004",
     "title": "家庭信息",
@@ -166,7 +151,7 @@ test_cases.append({
         make_turn(8, "我们家还养了一只金毛，叫豆豆，快两岁了。",
                   ["宠物: 金毛豆豆2岁"]),
         make_turn(9, "养狗需要注意什么？特别是和孩子相处。", []),
-        make_turn(10, "给我整理一下我的家庭信息：有几个孩子、分别多大、配偶职业、宠物叫什么？",
+        make_turn(10, "我之前说过有几个孩子？儿子多大？女儿多大？我老婆做什么工作？我家养了什么宠物叫什么？",
                   [],
                   [{"fact": "儿子: 5岁", "acceptable": ["5岁", "五岁", "儿子"]},
                    {"fact": "女儿: 3岁", "acceptable": ["3岁", "三岁", "女儿"]},
@@ -175,7 +160,6 @@ test_cases.append({
     ],
 })
 
-# conv_005 — 技术栈分散
 test_cases.append({
     "test_id": "conv_005",
     "title": "个人技术栈",
@@ -195,7 +179,7 @@ test_cases.append({
         make_turn(6, "部署方面我习惯用Docker加Kubernetes。",
                   ["部署: Docker+Kubernetes"]),
         make_turn(7, "有没有更好的容器编排工具推荐？", []),
-        make_turn(8, "总结一下我的技术栈：语言、框架、数据库、部署工具？",
+        make_turn(8, "我之前告诉过你我主要用什么编程语言？喜欢什么框架？数据库用什么？部署用什么工具？",
                   [],
                   [{"fact": "语言: Python", "acceptable": ["Python"]},
                    {"fact": "框架: FastAPI", "acceptable": ["FastAPI"]},
@@ -204,7 +188,6 @@ test_cases.append({
     ],
 })
 
-# conv_006 — 健康数据
 test_cases.append({
     "test_id": "conv_006",
     "title": "健康与医疗信息",
@@ -227,7 +210,7 @@ test_cases.append({
         make_turn(8, "半月板损伤还能跑步吗？", []),
         make_turn(9, "医生建议我减轻体重，我身高175，体重88公斤。",
                   ["身高175 体重88"]),
-        make_turn(10, "整理一下我的健康状况：什么病、血糖值、吃什么药、膝盖问题和体重目标？",
+        make_turn(10, "我之前说过我有什么慢性病？在吃什么药？膝盖有什么问题？体重多少公斤？",
                   [],
                   [{"fact": "疾病: 糖尿病", "acceptable": ["糖尿病", "二型"]},
                    {"fact": "药物: 二甲双胍", "acceptable": ["二甲双胍"]},
@@ -236,7 +219,6 @@ test_cases.append({
     ],
 })
 
-# conv_007 — 旅行计划
 test_cases.append({
     "test_id": "conv_007",
     "title": "旅行计划细节",
@@ -258,7 +240,7 @@ test_cases.append({
                   ["同行: 女朋友"]),
         make_turn(8, "纪念日旅行有什么浪漫的推荐吗？", []),
         make_turn(9, "酒店的话想住好一点，有没有推荐？", []),
-        make_turn(10, "再帮我确认一下行程：去哪、几天、什么时候出发、预算多少、和谁一起去？",
+        make_turn(10, "我之前说过要去哪里旅行？去几天？预算多少？几号出发？和谁一起去？",
                   [],
                   [{"fact": "目的地: 日本", "acceptable": ["日本"]},
                    {"fact": "时长: 7天", "acceptable": ["7天", "七天"]},
@@ -268,7 +250,6 @@ test_cases.append({
     ],
 })
 
-# conv_008 — 分散事实12轮
 test_cases.append({
     "test_id": "conv_008",
     "title": "12轮长对话事实分散",
@@ -293,7 +274,7 @@ test_cases.append({
         make_turn(10, "我平时最大的爱好是弹钢琴，学了大概十年了。",
                   ["爱好: 弹钢琴10年"]),
         make_turn(11, "最近在练肖邦的夜曲，特别美。", []),
-        make_turn(12, "给我一个完整的个人档案：姓名、职业、母校、家乡、宠物和爱好？",
+        make_turn(12, "我之前告诉过你我叫什么名字？做什么工作？哪个大学毕业的？老家哪的？养了什么宠物？有什么爱好？",
                   [],
                   [{"fact": "姓名: 陈芳", "acceptable": ["陈芳"]},
                    {"fact": "职业: HR", "acceptable": ["HR", "人力资源"]},
@@ -304,7 +285,6 @@ test_cases.append({
     ],
 })
 
-# conv_009 — 学习目标
 test_cases.append({
     "test_id": "conv_009",
     "title": "学习目标与计划",
@@ -325,7 +305,7 @@ test_cases.append({
         make_turn(6, "怎么快速提高口语分数？", []),
         make_turn(7, "我每天大概能学3个小时英语。",
                   ["每日学习: 3小时"]),
-        make_turn(8, "根据我的情况——考试类型、目标分数、考试日期和薄弱项——给我一个复习计划。",
+        make_turn(8, "我之前说过我在准备什么考试？目标分数多少？考试定在几号？哪部分最弱？",
                   [],
                   [{"fact": "考试: 雅思", "acceptable": ["雅思"]},
                    {"fact": "目标: 7.0", "acceptable": ["7", "7.0"]},
@@ -334,7 +314,6 @@ test_cases.append({
     ],
 })
 
-# conv_010 — 项目任务
 test_cases.append({
     "test_id": "conv_010",
     "title": "项目任务信息",
@@ -357,7 +336,7 @@ test_cases.append({
                   ["要求: 30组测试集 双指标"]),
         make_turn(8, "报告需要PDF格式，代码要可复现。", []),
         make_turn(9, "中期汇报我们已经有雏形了，期末要完整演示。", []),
-        make_turn(10, "总结一下项目：主题、语言、API、截止日期和评估要求？",
+        make_turn(10, "我之前说过我们项目做什么主题？用哪种编程语言？用谁的API？截止日期是哪天？",
                   [],
                   [{"fact": "项目: 长期记忆Agent", "acceptable": ["Agent", "长期记忆"]},
                    {"fact": "语言: Python", "acceptable": ["Python"]},
@@ -366,7 +345,6 @@ test_cases.append({
     ],
 })
 
-# conv_011 — 社交信息
 test_cases.append({
     "test_id": "conv_011",
     "title": "社交与联系方式",
@@ -385,7 +363,7 @@ test_cases.append({
                   ["社交: 微博 知乎"]),
         make_turn(6, "知乎上的高质量内容越来越少了。", []),
         make_turn(7, "LinkedIn我也有，但不太活跃。", []),
-        make_turn(8, "告诉我你记住的我的联系方式：微信、邮箱、常用的社交平台？",
+        make_turn(8, "我之前说过我的微信号是什么？工作邮箱是什么？平时最喜欢刷什么社交平台？",
                   [],
                   [{"fact": "微信: zhangming_cn", "acceptable": ["zhangming_cn", "zhangming"]},
                    {"fact": "邮箱: zhangming@example.com", "acceptable": ["zhangming@example.com", "zhangming@"]},
@@ -393,7 +371,6 @@ test_cases.append({
     ],
 })
 
-# conv_012 — 偏好的复合场景
 test_cases.append({
     "test_id": "conv_012",
     "title": "多维度偏好",
@@ -417,7 +394,7 @@ test_cases.append({
         make_turn(8, "羽毛球有什么好的球拍品牌推荐？", []),
         make_turn(9, "我还喜欢喝咖啡，只喝美式不加糖。",
                   ["饮品: 美式咖啡不加糖"]),
-        make_turn(10, "整理一下我的所有偏好：颜色、最喜欢的歌手、电影、在看的书、运动、饮品？",
+        make_turn(10, "我之前说过我喜欢什么颜色？最喜欢的歌手是谁？最喜欢哪部电影？最近在看什么书？喜欢什么运动？喝咖啡喝什么样的？",
                   [],
                   [{"fact": "颜色: 蓝色", "acceptable": ["蓝色"]},
                    {"fact": "歌手: 周杰伦", "acceptable": ["周杰伦"]},
@@ -433,7 +410,6 @@ test_cases.append({
 # 类别2: 渐进更新/覆盖记忆 (10组)
 # ======================================================================
 
-# conv_013 — 年龄修正
 test_cases.append({
     "test_id": "conv_013",
     "title": "年龄修正",
@@ -450,13 +426,12 @@ test_cases.append({
         make_turn(4, "28岁买房和25岁比起来哪个阶段更合适？", []),
         make_turn(5, "房贷利率现在是多少？", []),
         make_turn(6, "首付一般需要准备多少比例？", []),
-        make_turn(7, "对了，我今年到底多大？",
+        make_turn(7, "我现在到底多少岁？",
                   [],
                   [{"fact": "年龄: 28（非25）", "acceptable": ["28", "二十八", "28岁"]}]),
     ],
 })
 
-# conv_014 — 职业变更
 test_cases.append({
     "test_id": "conv_014",
     "title": "职业变更",
@@ -480,7 +455,6 @@ test_cases.append({
     ],
 })
 
-# conv_015 — 婚恋状态变化
 test_cases.append({
     "test_id": "conv_015",
     "title": "婚姻状态更新",
@@ -506,7 +480,6 @@ test_cases.append({
     ],
 })
 
-# conv_016 — 饮食偏好演进
 test_cases.append({
     "test_id": "conv_016",
     "title": "饮食偏好多次变更",
@@ -527,13 +500,12 @@ test_cases.append({
         make_turn(7, "我想尝试一下牛排，有什么推荐？", []),
         make_turn(8, "几分熟比较合适初学者？", []),
         make_turn(9, "还有什么其他值得尝试的肉类？", []),
-        make_turn(10, "我现在的饮食方式是什么？",
+        make_turn(10, "我现在饮食上有什么限制？",
                   [],
                   [{"fact": "饮食: 无限制（什么都吃）", "acceptable": ["什么都吃", "无限制", "不限制", "吃肉"]}]),
     ],
 })
 
-# conv_017 — 地点迁移
 test_cases.append({
     "test_id": "conv_017",
     "title": "居住地变更",
@@ -557,7 +529,6 @@ test_cases.append({
     ],
 })
 
-# conv_018 — 姓名更正
 test_cases.append({
     "test_id": "conv_018",
     "title": "姓名更正",
@@ -579,7 +550,6 @@ test_cases.append({
     ],
 })
 
-# conv_019 — 联系方式变更
 test_cases.append({
     "test_id": "conv_019",
     "title": "联系方式更新",
@@ -604,7 +574,6 @@ test_cases.append({
     ],
 })
 
-# conv_020 — 预算调整
 test_cases.append({
     "test_id": "conv_020",
     "title": "预算多次调整",
@@ -631,7 +600,6 @@ test_cases.append({
     ],
 })
 
-# conv_021 — 健康状况变化
 test_cases.append({
     "test_id": "conv_021",
     "title": "健康状况变化",
@@ -655,7 +623,6 @@ test_cases.append({
     ],
 })
 
-# conv_022 — 学习进度更新
 test_cases.append({
     "test_id": "conv_022",
     "title": "学习进度更新",
@@ -672,7 +639,7 @@ test_cases.append({
         make_turn(4, "现在想继续往深度学习的方面发展。", []),
         make_turn(5, "深度学习有什么推荐的学习路径？", []),
         make_turn(6, "需不需要先学线性代数？", []),
-        make_turn(7, "我现在的学习阶段是什么？",
+        make_turn(7, "我现在的学习阶段是什么？还算是零基础吗？",
                   [],
                   [{"fact": "状态: 已通过认证（非零基础）", "acceptable": ["通过", "认证", "初级", "不是零基础"]}]),
     ],
@@ -683,7 +650,6 @@ test_cases.append({
 # 类别3: 跨话题干扰记忆 (8组)
 # ======================================================================
 
-# conv_023 — 两话题混排
 test_cases.append({
     "test_id": "conv_023",
     "title": "两话题交替混排",
@@ -707,7 +673,7 @@ test_cases.append({
         make_turn(9, "模型评估我主要看F1分数。", []),
         make_turn(10, "要不要请一个主持人？", []),
         make_turn(11, "还需要准备蛋糕吗？", []),
-        make_turn(12, "给我分别总结：AI项目——做什么任务、用什么模型、数据量、评估指标？生日宴——给谁办的、预算、人数？",
+        make_turn(12, "我之前说过我的AI项目在做什么任务？训练数据有多少？生日宴是给谁办的？预算多少？",
                   [],
                   [{"fact": "AI任务: 情感分析", "acceptable": ["情感分析"]},
                    {"fact": "AI数据: 5万条", "acceptable": ["5万"]},
@@ -716,7 +682,6 @@ test_cases.append({
     ],
 })
 
-# conv_024 — 三话题切换
 test_cases.append({
     "test_id": "conv_024",
     "title": "三话题快速切换",
@@ -741,7 +706,7 @@ test_cases.append({
         make_turn(11, "北京附近还有哪些好的露营地？", []),
         make_turn(12, "给猫吃什么比较好消化？", []),
         make_turn(13, "OK让我总结一下今天聊的三个话题分别是什么。", []),
-        make_turn(14, "最后确认：代码是什么问题、去哪露营、猫什么症状？",
+        make_turn(14, "我之前说的代码bug是什么问题？我打算去哪露营？我家猫叫什么名字，有什么症状？",
                   [],
                   [{"fact": "代码: race condition异步", "acceptable": ["race condition", "异步", "asyncio"]},
                    {"fact": "露营: 长城", "acceptable": ["长城", "露营"]},
@@ -749,7 +714,6 @@ test_cases.append({
     ],
 })
 
-# conv_025 — 相似概念干扰
 test_cases.append({
     "test_id": "conv_025",
     "title": "相似航班编号干扰",
@@ -770,7 +734,7 @@ test_cases.append({
         make_turn(9, "我的座位是经济舱20A。", []),
         make_turn(10, "行李限额是多少？", []),
         make_turn(11, "到了东京怎么去市区？", []),
-        make_turn(12, "在所有航班里——我的航班号是什么、去哪、哪天？",
+        make_turn(12, "我的航班号是多少？去哪？几号出发？",
                   [],
                   [{"fact": "航班: CA1234（非其他）", "acceptable": ["CA1234"]},
                    {"fact": "目的地: 东京", "acceptable": ["东京"]},
@@ -778,7 +742,6 @@ test_cases.append({
     ],
 })
 
-# conv_026 — 先聊A后完全转B再跳回A
 test_cases.append({
     "test_id": "conv_026",
     "title": "话题完全转换后跳回",
@@ -798,14 +761,13 @@ test_cases.append({
         make_turn(7, "数据Pipeline的调度工具用什么比较好？Airflow？", []),
         make_turn(8, "整个项目预算大概50万，周期3个月。", []),
         make_turn(9, "团队有5个人，两个后端、一个前端、两个数据。", []),
-        make_turn(10, "回到电影话题——我之前说我最喜欢的导演是谁来着？",
+        make_turn(10, "回到电影话题——我之前说过我最喜欢的导演是谁？最喜欢他哪部电影？",
                   [],
                   [{"fact": "导演: 诺兰", "acceptable": ["诺兰"]},
                    {"fact": "电影: 盗梦空间", "acceptable": ["盗梦空间"]}]),
     ],
 })
 
-# conv_027 — 信息干扰链
 test_cases.append({
     "test_id": "conv_027",
     "title": "冷知识干扰",
@@ -830,7 +792,7 @@ test_cases.append({
         make_turn(11, "袋熊的粪便是立方体形状的。", []),
         make_turn(12, "史上最短的战争只持续了38分钟。", []),
         make_turn(13, "奶牛有最好的朋友，分开会感到焦虑。", []),
-        make_turn(14, "忘掉那些冷知识——我的密码提示、喜欢的数字和宠物的名字分别是什么？",
+        make_turn(14, "我之前说过我的密码提示是什么？喜欢的数字是多少？小时候养的猫叫什么名字？",
                   [],
                   [{"fact": "密码: Sunset-Penguin-2024!", "acceptable": ["Sunset-Penguin", "2024"]},
                    {"fact": "数字: 42", "acceptable": ["42"]},
@@ -838,7 +800,6 @@ test_cases.append({
     ],
 })
 
-# conv_028 — 争论干扰
 test_cases.append({
     "test_id": "conv_028",
     "title": "激烈争论后回忆",
@@ -857,13 +818,12 @@ test_cases.append({
         make_turn(7, "你认为哪些职业会最后被取代？", []),
         make_turn(8, "教育系统需要彻底改革才能应对AI时代。", []),
         make_turn(9, "这个话题太大了，需要更多讨论。", []),
-        make_turn(10, "回到一件事——我最开始告诉你的紧急医疗信息是什么？",
+        make_turn(10, "回到最开始——我告诉过你我有什么过敏？需要随身带什么？",
                   [],
                   [{"fact": "过敏: 花生 EpiPen", "acceptable": ["花生", "EpiPen", "肾上腺素"]}]),
     ],
 })
 
-# conv_029 — 四个线程
 test_cases.append({
     "test_id": "conv_029",
     "title": "四线程信息管理",
@@ -891,7 +851,7 @@ test_cases.append({
         make_turn(13, "吉他多久能练到可以表演？", []),
         make_turn(14, "装修每平米预算多少合理？", []),
         make_turn(15, "CFA和FRM哪个对职业发展帮助大？", []),
-        make_turn(16, "我今天聊了四件事，分别列出它们并各说一个细节。",
+        make_turn(16, "我今天聊了四件事——吉他方面学的是什么？装修在选什么？考CFA几级？婚礼什么时候办？",
                   [],
                   [{"fact": "吉他: 指弹", "acceptable": ["吉他", "指弹"]},
                    {"fact": "装修: 地板", "acceptable": ["装修", "地板", "公寓"]},
@@ -900,7 +860,6 @@ test_cases.append({
     ],
 })
 
-# conv_030 — 跨话题远距召回
 test_cases.append({
     "test_id": "conv_030",
     "title": "超远距跨话题召回",
@@ -922,7 +881,7 @@ test_cases.append({
         make_turn(10, "可再生能源是最重要的研究方向。", []),
         make_turn(11, "脑机接口到底靠不靠谱？", []),
         make_turn(12, "好吧我们聊了很多科技新闻。", []),
-        make_turn(13, "在最开始的时候，我提到过一个数字——我的幸运数字是多少？",
+        make_turn(13, "我最开始提到过的那个幸运数字是多少？",
                   [],
                   [{"fact": "幸运数字: 17", "acceptable": ["17", "十七"]}]),
     ],
@@ -933,7 +892,6 @@ test_cases.append({
 # 类别4: 负面样本/不需要记忆 (8组)
 # ======================================================================
 
-# conv_031 — 寒暄不存
 test_cases.append({
     "test_id": "conv_031",
     "title": "纯寒暄不应记为记忆",
@@ -953,7 +911,6 @@ test_cases.append({
     ],
 })
 
-# conv_032 — 一次性问题
 test_cases.append({
     "test_id": "conv_032",
     "title": "一次性知识查询",
@@ -974,7 +931,6 @@ test_cases.append({
     ],
 })
 
-# conv_033 — 临时问路
 test_cases.append({
     "test_id": "conv_033",
     "title": "临时导航请求",
@@ -987,13 +943,12 @@ test_cases.append({
         make_turn(2, "大概需要多长时间？", []),
         make_turn(3, "到了陆家嘴附近有什么好吃的推荐吗？", []),
         make_turn(4, "谢谢你，我已经到了。", []),
-        make_turn(5, "关于我今天问路的事，你记得什么我的信息吗？",
+        make_turn(5, "关于我今天问路的事，你记得什么关于我的信息吗？",
                   [],
                   [{"fact": "无需长期记忆路径问询信息", "acceptable": ["没有", "不知道", "问路", "不记得"]}]),
     ],
 })
 
-# conv_034 — 模拟对话但不应记忆
 test_cases.append({
     "test_id": "conv_034",
     "title": "角色扮演模拟",
@@ -1010,13 +965,12 @@ test_cases.append({
         make_turn(5, "刚才的客服模拟你觉得表现得怎么样？", []),
         make_turn(6, "有哪些地方可以改进？", []),
         make_turn(7, "我说句实话，我其实对客服工作也挺感兴趣的。", []),
-        make_turn(8, "我之前在角色扮演中假装自己叫什么名字？",
+        make_turn(8, "我之前在角色扮演里假装叫什么名字？另外我真正的职业是什么？",
                   [],
                   [{"fact": "角色名非真实姓名（李华是假想的角色）", "acceptable": ["李华", "假装的", "角色"]}]),
     ],
 })
 
-# conv_035 — 闲聊爱好不存
 test_cases.append({
     "test_id": "conv_035",
     "title": "非信息性闲聊",
@@ -1037,7 +991,6 @@ test_cases.append({
     ],
 })
 
-# conv_036 — 重复问同一问题
 test_cases.append({
     "test_id": "conv_036",
     "title": "重复提问不需重复记录",
@@ -1059,7 +1012,6 @@ test_cases.append({
     ],
 })
 
-# conv_037 — 混合场景
 test_cases.append({
     "test_id": "conv_037",
     "title": "信息与闲聊混合",
@@ -1081,14 +1033,13 @@ test_cases.append({
         make_turn(9, "今天地铁特别挤，差点迟到。", []),
         make_turn(10, "公司的咖啡机又坏了，烦死了。", []),
         make_turn(11, "最近晚上老睡不好，可能是压力大。", []),
-        make_turn(12, "从我们今天的聊天中，我提到了哪些真正重要需要记住的事？",
+        make_turn(12, "我刚才说过我有什么药物过敏？我下周有什么重要安排？",
                   [],
                   [{"fact": "过敏: 青霉素", "acceptable": ["青霉素"]},
                    {"fact": "面试: 微软 下周三", "acceptable": ["微软", "面试", "下周三"]}]),
     ],
 })
 
-# conv_038 — 功能测试: 确认无信息
 test_cases.append({
     "test_id": "conv_038",
     "title": "功能测试: 确认无信息时诚实回答",
