@@ -1,23 +1,25 @@
-# Python
+# Python virtual environment
+venv/
+
+# Bytecode cache
 __pycache__/
 *.pyc
 *.pyo
 
-# 运行时产物
+# Runtime outputs
 memory_store/
 data/agent_logs/
 results/
 
-# 代码副本（给组员的打包版本）
-code/
-
-
-
-# IDE
-.vscode/
+# IDE / editor
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# 课程资料（非项目文件）
-人工智能导论课程项目说明.pdf
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables (keep template if any)
+.env
